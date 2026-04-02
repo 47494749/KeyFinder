@@ -11,8 +11,8 @@ This tool is designed to search for private and public keys contained in binary 
   - Enables recursive directory scanning.
 - `-th number`                   
   - Sets the number of threads to use.
-- `+-ed25519 ed448 secp256k1`    
-  - Enables or disables specific algorithms (ED25519, ED448, SECP256K1).
+- `+-ed25519 ed448 secp256k1 rsa128 rsa256 rsa512 rsa1024 rsa2048 rsa4096`    
+  - Enables or disables specific algorithms (ED25519, ED448, SECP256K1, RSA...).
 - `-no_cross`                    
   - Disables cross scan, preventing the search for private/public keys in different files.
 - `-analyze`                     
