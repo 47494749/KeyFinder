@@ -1,4 +1,4 @@
-# Cryptographic Material Search Tool by Luigi Origa
+# Keys Search Tool by Luigi Origa
 
 
 This tool is designed to search for private and public keys contained in binary files for ED448, ED25519, and SECP256K1. It can also extract certificates in DER format and provides an analysis of the cryptographic material contained in the file.
