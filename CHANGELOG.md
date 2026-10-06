@@ -1,5 +1,34 @@
 # KeyFinder Changelog
 
+## V1.09 (2026-09-29)
+
+### Bug Fixes
+- Fixed segfault in `SavePrivPub`/`SavePattern2`: crash when dereferencing `keys.begin()` on an empty map (triggered by small files where all candidate keys were filtered out by curve-order validation)
+- Fixed SECP256K1 missing empty-keys guard after curve-order filtering (was already present in SECP256R1/384R1/521R1)
+- Fixed `GenerateDSA_CPU` buffer overread: `memcpy` copied `sizeof(PubKeyType)` bytes (up to 384) from a private key buffer of only 20-32 bytes, causing segfault on DSA-2048/3072
+- Fixed zero-pubkey false positives: added `isAllZero()` guard in all 10 `sc*.cpp` search loops (27 points) to skip keys with all-zero public keys in both single-file and cross-compare searches
+- Fixed `--clean_db` not scanning subdirectories: replaced fragile `getAllFiles`/`glob` with robust `recursive_directory_iterator` (same error handling as main scan path)
+- Fixed `--clean_db` not removing orphan sidecar files: now detects files by extension match and removes them even if the base file no longer exists
+- Fixed `.P20` (DSA-1024) and `.P56` (X448) missing from extensions map, so `--clean_db` now removes them
+
+### DSA Implementation
+- Replaced `GenerateDSA_CPU` placeholder (`memcpy` of private key) with real `y = g^x mod p` computation via `crypto::asymmetric::DSA::generatePublicKey()` using `MPInt::modExp`
+- Added `GenerateDSA_GPU` using embedded `opencl_dsa.cl` kernel with CPU fallback (supports DSA-1024, DSA-2048, DSA-3072)
+- DSA GPU kernel embedded in executable via `gpu_kernels_data.h`, consistent with all other kernels
+
+### Build & Tooling
+- Added `build_msvc.bat` for building with Visual Studio 2022 BuildTools (C++20)
+- Added `ai_friendly.md` with complete build/deploy/test reference for AI-assisted development
+- Added `testbench/` with `generate_test_data.py` and `run_tests.py` for automated verification of all asymmetric algorithms, AES, ChaCha20, DES, IDEA, RC5/RC6, SM4, RSA-2048, and X.509 certificates
+- Updated `gen_kernel_header.py` to include DSA kernel in embedded resources
+- Updated `myExtensions.cpp`/`.h` with `A_PATTERN20` and `A_PATTERN56`
+- Updated `scDSA.cpp` and `scX448.cpp` to use extensions map instead of hardcoded strings
+
+### CLI
+- Updated command-line argument format documentation (all options use `--` prefix: `--i`, `--r`, `--analyze`, etc.)
+
+---
+
 ## V1.08 (2026-07-28)
 
 ### Trial Decrypt — CBC and CTR Mode Support
