@@ -4,124 +4,218 @@ by Luigi Origa
 
 KeyFinder searches binary files and memory dumps for cryptographic keys, secrets, and artifacts. It identifies asymmetric private/public key pairs, symmetric key schedules expanded in memory, X.509 certificates, and can attempt trial decryption of encrypted files using candidate keys extracted from source binaries.
 
-## Supported Algorithms
-
-### Asymmetric Key Search (private/public key pairs)
-
-| Family | Algorithms |
-|--------|-----------|
-| EdDSA | ED25519, ED448 |
-| ECDSA / ECDH | SECP256K1, SECP256R1, SECP384R1, SECP521R1 |
-| X-DH | X25519, X448 |
-| Brainpool | BP256R1, BP384R1, BP512R1 |
-| DSA | DSA-1024, DSA-2048, DSA-3072 |
-| RSA | RSA-128, RSA-256, RSA-512, RSA-1024, RSA-2048, RSA-4096 |
-
-### Symmetric Key Schedule Search (expanded keys in memory)
-
-AES, DES, Camellia, SM4, Serpent, IDEA, Twofish, SEED, CAST-128, ARIA, RC5/RC6, ChaCha20
-
-### Trial Decrypt (brute-force decryption with candidate keys)
-
-| Mode | Supported Ciphers |
-|------|-------------------|
-| ECB | AES-128, AES-256, Camellia-128/256, SM4, Serpent-256, Twofish-256, ARIA-128/256, SEED, DES, 3DES, IDEA, CAST-128 |
-| CBC | AES-128, AES-256, Camellia-128/256, SM4, Serpent-256, Twofish-256, ARIA-128/256, SEED (16-byte block ciphers) |
-| CTR | AES-128, AES-256 |
-
 ## Command Line Reference
+
+```
+KeyFinder.exe [options] [+algo...] [-algo...]
+```
 
 ### General
 
-| Option | Description |
-|--------|-------------|
-| `-h`, `-?` | Show help |
-| `-i path\|filename` | Path or binary to load as key source (repeatable) |
-| `-th number` | Number of threads (default: auto-detect) |
-| `-r` | Scan directories recursively |
+```
+--help, --h              this help
+--i path|filename        path or binary to load (key source, repeatable)
+--th number              number of threads (default: auto)
+--r                      scan directories recursively
+```
 
-### Trial Decrypt
+Also accepted: `-h`, `-?`
 
-| Option | Description |
-|--------|-------------|
-| `-e path\|filename` | Encrypted file to trial-decrypt (repeatable) |
-| `-mode ecb\|cbc\|ctr` | Cipher mode for trial decrypt (default: ecb) |
-| `-iv hex` | IV for CBC (32 hex chars = 16 bytes) or nonce for CTR (24 hex chars = 12 bytes) |
-| `-ctr_start number` | Initial counter value for CTR mode (default: 0) |
+### Scan Modes (independent of algorithm selection)
 
-### Algorithm Toggles
+```
+--analyze                search for common crypto constants
+--certs                  search/extract DER/PEM X509, PKCS#7, CSR
+--deep_scan              deep scan for keys, secrets and crypto artifacts
+```
 
-`+name` enables an algorithm, `-name` disables it.
+### Algorithm Selection
 
-**Default enabled:** ed25519, ed448
+`+name` enables, `-name` disables. No algorithms are enabled by default.
 
-| Toggle | Description |
-|--------|-------------|
-| `+asym` / `-asym` | Enable / disable all asymmetric algorithms |
-| `+sym` / `-sym` | Enable / disable all symmetric algorithms |
+```
+Asymmetric key search (private/public keys):
+  +asym                    enable all asymmetric algorithms
+  names: ed25519 ed448 secp256k1 secp256r1 secp384r1 secp521r1
+         x25519 x448
+         bp256r1 bp384r1 bp512r1 (Brainpool curves)
+         dsa1024 dsa2048 dsa3072
+         rsa128 rsa256 rsa512 rsa1024 rsa2048 rsa4096
 
-**Asymmetric names:** `ed25519` `ed448` `secp256k1` `secp256r1` `secp384r1` `secp521r1` `x25519` `x448` `bp256r1` `bp384r1` `bp512r1` `dsa1024` `dsa2048` `dsa3072` `rsa128` `rsa256` `rsa512` `rsa1024` `rsa2048` `rsa4096`
+Symmetric key schedule search (expanded keys in memory):
+  +sym                     enable all symmetric algorithms
+  names: aes des camellia sm4 serpent idea twofish seed
+         cast128 aria rc5rc6 chacha20
+```
 
-**Symmetric names:** `aes` `des` `camellia` `sm4` `serpent` `idea` `twofish` `seed` `cast128` `aria` `rc5rc6` `chacha20`
+Use `-name` after `+asym` or `+sym` to exclude specific algorithms.
+Example: `+asym -rsa128 -rsa256` (all asymmetric except RSA-128 and RSA-256)
 
-### Scan Modes
+### Trial Decrypt (requires `--e` and at least one `+sym` algorithm)
 
-| Option | Description |
-|--------|-------------|
-| `-analyze` | Search for common cryptographic constants |
-| `-analyze_only` | Search for constants only (no key search) |
-| `-certs` | Search and extract DER X.509 certificates |
-| `-certs_only` | Extract certificates only (no key search) |
-| `-deep_scan` | Deep scan for keys, secrets, and crypto artifacts |
-| `-deep_scan_only` | Deep scan only (no key search) |
+```
+--e path|filename        encrypted file target (repeatable)
+--mode ecb|cbc|ctr       cipher mode (default: ecb)
+--iv hex                 IV for CBC (32 hex = 16 bytes)
+                         or nonce for CTR (24 hex = 12 bytes)
+--ctr_start number       initial counter value for CTR (default: 0)
+--validate_arm           post-filter: validate ARM Cortex-M vector table
+```
+
+Supported ciphers for trial decrypt:
+
+| Mode | Ciphers |
+|------|---------|
+| ECB | AES-128, AES-256, Camellia-128/256, SM4, Serpent-256, Twofish-256, ARIA-128/256, SEED, DES, 3DES, IDEA, CAST-128 |
+| CBC | AES-128, AES-256, Camellia-128/256, SM4, Serpent-256, Twofish-256, ARIA-128/256, SEED |
+| CTR | AES-128, AES-256 |
+
+Note: CBC requires 16-byte block ciphers (DES, 3DES, IDEA, CAST-128 have 8-byte blocks and are excluded). CTR is implemented only for AES. RC5/RC6 and ChaCha20 are detected as key schedules but do not support trial decrypt.
+
+### Advanced Decrypt
+
+```
+--xor_compare file       XOR-compare encrypted files (use 2+, repeatable)
+--partial_key pattern    brute-force key with '?' wildcards (max 40 bits)
+--kdf sha256|hmac|cmac|hkdf  derive key via KDF before trial decrypt (*)
+--kdf_constant hex       constant/info parameter for KDF (*)
+```
+
+(*) KDF is currently disabled — the required library (kdf/hkdf.h) is not yet implemented. The argument is accepted but prints a warning and does nothing.
 
 ### Filters and Options
 
-| Option | Description |
-|--------|-------------|
-| `-no_cross` | Disable cross-file key comparison |
-| `-no_gpu` | Disable GPU (OpenCL) acceleration |
-| `-ignore_excluded` | Ignore excluded file extensions |
-| `-xe ext` | Exclude a file extension (repeatable) |
-| `-xd dir` | Exclude a directory (repeatable) |
-| `-clean_db` | Remove all sidecar/cache files |
+```
+--no_cross               disable cross-file key comparison
+--no_gpu                 disable GPU acceleration
+--ignore_excluded        ignore excluded extensions
+--xe ext                 exclude extension (repeatable)
+--xd dir                 exclude directory (repeatable)
+--clean_db               remove all sidecar/cache files
+```
 
-## Default Excluded Extensions
+## Supported Algorithms
 
-`txt`, `jpg`, `bmp`, `ico`, `xls`, `doc`, `hex`, `bak`, `idb`, `idc`, `py`
+### Asymmetric (20 algorithms)
+
+| Family | Algorithms | Private Key Size | Public Key Size | Cross-Compare |
+|--------|-----------|------------------|-----------------|---------------|
+| EdDSA | ED25519 | 32 bytes | 32 bytes | yes |
+| EdDSA | ED448 | 57 bytes | 57 bytes | yes |
+| ECDSA | SECP256K1, SECP256R1 | 32 bytes | 32+32 bytes (X,Y) | yes |
+| ECDSA | SECP384R1 | 48 bytes | 48+48 bytes (X,Y) | yes |
+| ECDSA | SECP521R1 | 66 bytes | 66+66 bytes (X,Y) | yes |
+| X-DH | X25519 | 32 bytes | 32 bytes | yes |
+| X-DH | X448 | 56 bytes | 56 bytes | yes |
+| Brainpool | BP256R1 | 32 bytes | 32+32 bytes (X,Y) | yes |
+| Brainpool | BP384R1 | 48 bytes | 48+48 bytes (X,Y) | yes |
+| Brainpool | BP512R1 | 64 bytes | 64+64 bytes (X,Y) | yes |
+| DSA | DSA-1024 | 20 bytes | 128 bytes (y = g^x mod p) | yes |
+| DSA | DSA-2048 | 32 bytes | 256 bytes (y = g^x mod p) | yes |
+| DSA | DSA-3072 | 32 bytes | 384 bytes (y = g^x mod p) | yes |
+| RSA | RSA-128 (128-bit) | P=8B, Q=8B | N=16 bytes | no (*) |
+| RSA | RSA-256 (256-bit) | P=16B, Q=16B | N=32 bytes | no (*) |
+| RSA | RSA-512 (512-bit) | P=32B, Q=32B | N=64 bytes | no (*) |
+| RSA | RSA-1024 (1024-bit) | P=64B, Q=64B | N=128 bytes | no (*) |
+| RSA | RSA-2048 (2048-bit) | P=128B, Q=128B | N=256 bytes | no (*) |
+| RSA | RSA-4096 (4096-bit) | P=256B, Q=256B | N=512 bytes | no (*) |
+
+(*) RSA does not have cross-file comparison. RSA search finds primes P,Q within each file and checks if N=P*Q matches a public key pattern in the same file.
+
+All asymmetric algorithms are **disabled by default**. Enable with `+asym` or `+name`.
+
+### Symmetric (12 algorithms)
+
+| Algorithm | Key Schedule Detection | Trial Decrypt |
+|-----------|----------------------|---------------|
+| AES | yes (128/256-bit key schedule) | ECB, CBC, CTR |
+| DES | yes (56-bit + 16 subkeys) | ECB only |
+| 3DES | — (detected via DES) | ECB only |
+| Camellia | yes (128-bit key schedule) | ECB, CBC |
+| SM4 | yes (128-bit, 32 round keys) | ECB, CBC |
+| Serpent | yes (128/256-bit, 33 round keys) | ECB, CBC |
+| IDEA | yes (128-bit, 52 subkeys) | ECB only |
+| Twofish | yes (128/256-bit, 40 subkeys) | ECB, CBC |
+| SEED | yes (128-bit, 16 round keys) | ECB, CBC |
+| CAST-128 | yes (128-bit, 32 subkeys) | ECB only |
+| ARIA | yes (128-bit, 13 round keys) | ECB, CBC |
+| RC5/RC6 | yes (RC5-32/12 + RC6-32/20) | no |
+| ChaCha20 | yes ("expand 32-byte k" constant) | no |
+
+All symmetric algorithms are **disabled by default**. Enable with `+sym` or `+name`.
 
 ## Features
 
 - **Multi-threaded CPU** — all key search and trial decrypt operations are parallelized
-- **GPU acceleration** — OpenCL-based search for ED25519, ED448, SECP, RSA primes, AES key schedules, and more
-- **Cross-file comparison** — finds matching private/public key pairs across multiple files
+- **GPU acceleration (OpenCL)** — ED25519, ED448, SECP curves, X25519, X448, Brainpool, DSA, RSA primes, AES key schedule search, partial key brute-force
+- **Cross-file comparison** — finds private key in file A matching public key in file B (all asymmetric except RSA)
 - **SHA-256 deduplication** — skips files with identical content; caches completed algorithms per-file
-- **Trial decrypt** — sliding-window key extraction from source files with automatic variant generation (original, reversed, endian-swapped)
+- **Trial decrypt** — sliding-window key extraction with automatic variant generation (original, reversed, endian-swapped)
+- **Certificate extraction** — DER/PEM X.509, PKCS#7/CMS SignedData, PKCS#10 CSR, PKCS#8/PKCS#1 private keys
 
 ## Examples
 
+```bash
+# Search all asymmetric keys in a firmware dump
+KeyFinder.exe --i firmware.bin +asym
+
+# Recursive scan with all algorithms and 8 threads
+KeyFinder.exe --i C:\dumps --r +asym +sym --th 8
+
+# Specific algorithms only
+KeyFinder.exe --i file1.bin --i file2.bin +rsa2048 +secp256r1
+
+# All asymmetric except small RSA
+KeyFinder.exe --i firmware.bin +asym -rsa128 -rsa256
+
+# Certificate and constant analysis
+KeyFinder.exe --i C:\dumps --r --certs --analyze
+
+# Deep scan, CPU only
+KeyFinder.exe --i target.bin --deep_scan --no_gpu
+
+# Exclude extensions and directories
+KeyFinder.exe --i C:\dumps --r +asym --xe log --xd temp
+
+# Clean sidecar/cache files
+KeyFinder.exe --i C:\dumps --r --clean_db
 ```
-KeyFinder -i firmware.bin
-KeyFinder -i C:\dumps -r -th 8
-KeyFinder -i file1.bin -i file2.bin +rsa2048 +secp256r1
-KeyFinder -i firmware.bin -aes -ed448
-KeyFinder -i C:\dumps -r -certs -analyze
-KeyFinder -i target.bin -deep_scan -no_gpu
-KeyFinder -i C:\dumps -r -xe log -xd temp
+
+### Trial Decrypt
+
+```bash
+# ECB (default)
+KeyFinder.exe --i keydump.bin --e encrypted.bin +aes
+
+# CBC with IV
+KeyFinder.exe --i dump.bin --e firmware.bin +aes --mode cbc --iv 00112233445566778899AABBCCDDEEFF
+
+# CTR with nonce (AES only)
+KeyFinder.exe --i memory.bin --e payload.bin +aes --mode ctr --iv 00112233445566778899AABB --ctr_start 1
+
+# All symmetric ciphers
+KeyFinder.exe --i source.bin --e target.bin +sym
+
+# Partial key brute-force
+KeyFinder.exe --e encrypted.bin --partial_key 0123456789ABCDEF???????????????? +aes
+
+# XOR-compare (detect key reuse)
+KeyFinder.exe --xor_compare file1.enc --xor_compare file2.enc
+
+# ARM firmware validation
+KeyFinder.exe --i dump.bin --e firmware.enc +aes --validate_arm
 ```
 
-### Trial Decrypt Examples
+## Sidecar Files
 
-```
-# ECB mode (default) — try all symmetric keys from source against encrypted file
-KeyFinder -i keydump.bin -e encrypted.bin +aes
+KeyFinder caches results alongside scanned files:
 
-# CBC mode — requires 16-byte IV
-KeyFinder -i tcm_dump.bin -e firmware.bin +aes -mode cbc -iv 00112233445566778899AABBCCDDEEFF
+| Extension | Content |
+|-----------|---------|
+| `.sha256` | File hash + completed algorithm list |
+| `.P8` `.P16` `.P20` `.P32` `.P48` `.P56` `.P57` `.P64` `.P66` `.P128` `.P256` `.P512` | Raw pattern candidates |
+| `.KED25519` `.KED448` `.KSECP256K1` `.KSECP256R1` `.KSECP384R1` `.KSECP521R1` `.KX25519` `.KX448` `.KBP256R1` `.KBP384R1` `.KBP512R1` `.KDSA1024` `.KDSA2048` `.KDSA3072` | Computed key pairs |
+| `.KRSA128` `.KRSA256` `.KRSA512` `.KRSA1024` `.KRSA2048` `.KRSA4096` | RSA key pairs |
+| `.M8` `.M16` `.M32` `.M64` `.M128` `.M256` `.M512` | RSA prime candidates (0 bytes = no primes found) |
 
-# CTR mode — requires 12-byte nonce and optional start counter
-KeyFinder -i memory.bin -e payload.bin +aes -mode ctr -iv 00112233445566778899AABB -ctr_start 1
-
-# Multiple ciphers in ECB trial decrypt
-KeyFinder -i source.bin -e target.bin +sym
-```
+Use `--clean_db` to remove all sidecar files.
